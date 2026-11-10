@@ -18,3 +18,4 @@ jobs:
           echo "Verified generated domain HTTP $http_code"
           head -c 300 /tmp/response || true
           if [ "$http_code" != "200" ]; then exit 1; fi
+          if ! grep -q '"configured":true' /tmp/response; then echo "::error::Notion secret not available on the public runtime"; exit 1; fi
