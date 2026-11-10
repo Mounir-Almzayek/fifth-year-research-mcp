@@ -1,0 +1,36 @@
+name: Package Appwrite Function
+on:
+  push:
+    branches: [main]
+    paths:
+      - "appwrite-function/**"
+      - ".github/workflows/package.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate source
+        run: |
+          node --check appwrite-function/index.js
+          node --check appwrite-function/public/app.js
+          test -f appwrite-function/package.json
+      - name: Build minimal deployment bundle
+        run: |
+          tar -czf fifth-year-function-v0.3.0.tar.gz -C appwrite-function .
+          tar -tzf fifth-year-function-v0.3.0.tar.gz | head -30
+      - name: Publish bundle as GitHub release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v0.3.0 >/dev/null 2>&1; then
+            gh release upload v0.3.0 fifth-year-function-v0.3.0.tar.gz --clobber
+          else
+            gh release create v0.3.0 fifth-year-function-v0.3.0.tar.gz --title "Research Portal v0.3.0" --notes "Appwrite Node.js 22 function build; no secrets."
+          fi
