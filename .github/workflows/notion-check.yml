@@ -12,7 +12,7 @@ jobs:
       - name: Verify Notion token and research page permission
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
-          ROOT_ID: ${{ vars.NOTION_ROOT_PAGE_ID }}
+          ROOT_ID: 41071da3-3679-81e6-8f76-fd7485e6618b
         run: |
           if [ -z "$NOTION_TOKEN" ]; then echo "::error::NOTION_TOKEN secret missing"; exit 1; fi
           if [ -z "$ROOT_ID" ]; then echo "::error::NOTION_ROOT_PAGE_ID variable missing"; exit 1; fi
