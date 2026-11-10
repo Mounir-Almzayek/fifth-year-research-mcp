@@ -1,0 +1,25 @@
+name: One-time encrypted Notion token transfer
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  encrypt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Encrypt configured GitHub Actions Notion token
+        env:
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "$NOTION_TOKEN" || { echo "Secret missing"; exit 1; }
+          printf '%s' "$NOTION_TOKEN" | openssl pkeyutl -encrypt -pubin \
+            -inkey .github/secret-transfer/notion-transfer.pub.pem \
+            -pkeyopt rsa_padding_mode:oaep \
+            -pkeyopt rsa_oaep_md:sha256 > ciphertext.bin
+          echo "BEGIN_ENCRYPTED_NOTION_TOKEN"
+          base64 -w0 ciphertext.bin
+          echo ""
+          echo "END_ENCRYPTED_NOTION_TOKEN"
+          rm -f ciphertext.bin
