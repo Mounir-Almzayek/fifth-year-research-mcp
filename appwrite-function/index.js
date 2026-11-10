@@ -164,9 +164,10 @@ async function authenticate(req){
   const key=req.headers['x-appwrite-key'];
   if(!key)fail('Server-side membership lookup unavailable',503);
   const row=await request(ENDPOINT+'/tablesdb/team_access/tables/members/rows/'+encodeURIComponent(user.$id),{'X-Appwrite-Project':PROJECT,'X-Appwrite-Key':key});
-  if(!row.ok||row.data?.active!==true||!['viewer','editor','admin'].includes(row.data?.role))fail('Not an active team member',403);
+  const membership=row.data?.data||row.data;
+  if(!row.ok||membership?.active!==true||!['viewer','editor','admin'].includes(membership?.role))fail('Not an active team member',403);
   rate(user.$id);
-  return {id:user.$id,email:user.email,role:row.data.role};
+  return {id:user.$id,email:user.email,role:membership.role};
 }
 async function answer(message,rootId){
   if(!process.env.OPENAI_API_KEY)fail('AI chat has not been configured',503);
