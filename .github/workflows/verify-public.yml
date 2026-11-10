@@ -15,6 +15,6 @@ jobs:
         run: |
           host="fifth-year-research.fra.appwrite.run"
           http_code=$(curl -L -sS --max-time 20 -o /tmp/response -w '%{http_code}' "https://$host/health")
-          echo "Response HTTP $http_code"
+          echo "Verified generated domain HTTP $http_code"
           head -c 300 /tmp/response || true
           if [ "$http_code" != "200" ]; then exit 1; fi
