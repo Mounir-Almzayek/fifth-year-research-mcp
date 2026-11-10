@@ -1,18 +1,20 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>مساعد السنة الخامسة</title><link rel="stylesheet" href="/style.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>غروب السنة الخامسة — مساحة الأبحاث</title><link rel="stylesheet" href="/style.css"></head>
 <body>
 <main>
-<header><span class="sun">☀</span><div><h1>غروب السنة الخامسة</h1><p>Solar Intelligence — Graduation Research Hub</p></div><button id="logout" hidden>خروج</button></header>
-<section id="login"><h2>أهلاً بفريق الأبحاث</h2><p>الدخول متاح لأعضاء Appwrite المصرح لهم فقط.</p><form id="loginForm">
-<label>البريد الإلكتروني<input id="email" type="email" autocomplete="email" required></label>
-<label>كلمة المرور<input id="password" type="password" autocomplete="current-password" required></label>
-<button type="submit">تسجيل الدخول</button></form></section>
-<section id="workspace" hidden><p id="identity"></p>
-<div class="modes"><button id="browse">استعراض المشروع</button><button id="search">بحث بالعنوان</button><button id="assistant">مساعد الأبحاث</button></div>
+<header><span class="sun">🎓</span><div><h1>غروب السنة الخامسة</h1><p>مساحة مشتركة للمشاريع والأبحاث — Fifth Year Collaboration Hub</p></div><button id="logout" hidden>تسجيل الخروج</button></header>
+<section id="login"><h2>تسجيل الدخول بالبريد الإلكتروني</h2><p>تم تجهيز حسابات أعضاء الفريق. أدخل بريدك المدعو لنرسل لك رابط دخول آمن؛ ما بتحتاج كلمة مرور.</p>
+<form id="magicForm"><label>البريد الإلكتروني<input id="email" type="email" autocomplete="email" placeholder="you@example.com" required></label><button id="magicButton" type="submit">إرسال رابط الدخول</button></form>
+<p class="hint">افتح الرابط من نفس المتصفح ثم ارجع للمساحة. الوصول للمشاريع بيتم حسب صلاحيات كل عضو.</p>
+</section>
+<section id="workspace" hidden>
+<div class="toolbar"><p id="identity"></p><label class="project-control">المشروع المشترك<select id="projectSelect" aria-label="اختيار المشروع"></select></label></div>
+<nav class="modes"><button id="browse" type="button">استعراض صفحات المشروع</button><button id="search" type="button">البحث عن صفحة</button><button id="assistant" type="button">المساعد البحثي</button></nav>
 <div id="messages" aria-live="polite"></div>
-<form id="queryForm"><textarea id="query" maxlength="4000" placeholder="اكتب كلمة بحث أو سؤالاً عن صفحات المشروع" required rows="3"></textarea><button id="send" type="submit">إرسال</button></form>
-<p class="hint">القراءة فقط مفعّلة افتراضياً. لا ترسل معلومات حساسة للمساعد.</p></section>
+<form id="queryForm"><textarea id="query" maxlength="4000" placeholder="اكتب كلمة بحث أو سؤالاً عن المشروع الحالي" required rows="3"></textarea><button id="send" type="submit">إرسال</button></form>
+<p class="hint">المساعد الذكي يحتاج إعداد مفتاح AI منفصل. أي مشروع إضافي لازم يتم ربط صفحته وموافقة مدير الفريق عليه أولاً.</p>
+</section>
 <p id="status" role="status"></p>
 </main>
 <script src="https://cdn.jsdelivr.net/npm/appwrite@29.0.0"></script><script src="/app.js" defer></script>
