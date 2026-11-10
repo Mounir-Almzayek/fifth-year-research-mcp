@@ -49,10 +49,10 @@ async function notion(path,method='GET',body){
     throw new HttpError('Notion API returned '+r.status,r.status===404?404:503);
   }
 }
-async function inScope(target){
+async function inScope(target,rootId){
   let current=id(target),kind='page',visited=new Set();
   for(let step=0;step<48;step++){
-    if(current===ROOT)return;
+    if(current===id(rootId))return;
     if(visited.has(current))fail('Parent reference cycle',403);
     visited.add(current);
     let block;
@@ -75,15 +75,15 @@ function asBlock(block){
   const data=block[block.type]||{};
   return {id:block.id,type:block.type,has_children:!!block.has_children,title:data.title||'',text:(data.rich_text||[]).map(t=>t.plain_text||'').join('').slice(0,5000)};
 }
-async function tool(op,args){
+async function tool(op,args,rootId){
   if(!args||typeof args!=='object'||Array.isArray(args))fail('Invalid arguments');
   if(op==='read_page'){
-    await inScope(args.page_id);
+    await inScope(args.page_id,rootId);
     const page=await notion('/pages/'+id(args.page_id));
     return {id:page.id,title:asTitle(page),url:page.url};
   }
   if(op==='list_children'){
-    await inScope(args.parent_id);
+    await inScope(args.parent_id,rootId);
     const query=new URLSearchParams({page_size:'100'});
     if(args.cursor){if(typeof args.cursor!=='string'||args.cursor.length>255)fail('Invalid cursor');query.set('start_cursor',args.cursor);}
     const result=await notion('/blocks/'+id(args.parent_id)+'/children?'+query.toString());
@@ -96,7 +96,7 @@ async function tool(op,args){
       const result=await notion('/search','POST',{query:args.query,page_size:100,...(cursor?{start_cursor:cursor}:{})});
       for(const page of result.results||[]){
         if(page.object!=='page')continue;
-        try{await inScope(page.id);matches.push({id:page.id,title:asTitle(page),url:page.url});}catch{}
+        try{await inScope(page.id,rootId);matches.push({id:page.id,title:asTitle(page),url:page.url});}catch{}
         if(matches.length>=25)return matches;
       }
       cursor=result.next_cursor;
@@ -106,18 +106,53 @@ async function tool(op,args){
   }
   if(op==='create_page'){
     if(typeof args.title!=='string'||!args.title.trim()||args.title.length>180)fail('Invalid title');
-    await inScope(args.parent_id);
+    await inScope(args.parent_id,rootId);
     const page=await notion('/pages','POST',{parent:{type:'page_id',page_id:id(args.parent_id)},properties:{title:{type:'title',title:[{type:'text',text:{content:args.title}}]}}});
     return {id:page.id,url:page.url};
   }
   if(op==='append_paragraph'){
     if(typeof args.text!=='string'||!args.text.trim()||args.text.length>1700)fail('Invalid text');
-    await inScope(args.parent_id);
+    await inScope(args.parent_id,rootId);
     const block=await notion('/blocks/'+id(args.parent_id)+'/children','PATCH',{children:[{object:'block',type:'paragraph',paragraph:{rich_text:[{type:'text',text:{content:args.text}}]}}]});
     return {id:block.results?.[0]?.id};
   }
   fail('Unsupported tool');
 }
+
+function cleanProjectId(projectId){
+  if(typeof projectId!=='string'||!/^[a-zA-Z0-9_.-]{1,36}$/.test(projectId))fail('Invalid project identifier',400);
+  return projectId;
+}
+async function appwriteRead(path,apiKey){
+  const result=await request(ENDPOINT+path,{'X-Appwrite-Project':PROJECT,'X-Appwrite-Key':apiKey});
+  if(!result.ok)fail('Permission registry unavailable',503);
+  return result.data;
+}
+async function accessibleProjects(user,apiKey){
+  const qs=new URLSearchParams();
+  qs.append('queries[]',JSON.stringify({method:'equal',attribute:'userId',values:[user.id]}));
+  qs.append('queries[]',JSON.stringify({method:'limit',values:[100]}));
+  const grants=await appwriteRead('/tablesdb/team_access/tables/project_grants/rows?'+qs.toString(),apiKey);
+  const listed=[];
+  for(const record of grants.rows||[]){
+    const grant=record.data||record;
+    if(grant.userId!==user.id||grant.active!==true||!['viewer','editor','admin'].includes(grant.role))continue;
+    const projectId=cleanProjectId(grant.projectId);
+    const p=await appwriteRead('/tablesdb/team_access/tables/projects/rows/'+encodeURIComponent(projectId),apiKey);
+    const project=p.data||p;
+    if(project.active!==true)continue;
+    listed.push({id:projectId,name:project.name,rootId:id(project.rootId),role:grant.role});
+  }
+  return listed;
+}
+async function projectScope(user,apiKey,projectId){
+  projectId=cleanProjectId(projectId);
+  const allowed=await accessibleProjects(user,apiKey);
+  const project=allowed.find(p=>p.id===projectId);
+  if(!project)fail('Project access denied',403);
+  return project;
+}
+
 async function authenticate(req){
   const header=req.headers.authorization||'';
   const token=header.startsWith('Bearer ')?header.slice(7):req.headers['x-appwrite-user-jwt'];
@@ -133,7 +168,7 @@ async function authenticate(req){
   rate(user.$id);
   return {id:user.$id,email:user.email,role:row.data.role};
 }
-async function answer(message){
+async function answer(message,rootId){
   if(!process.env.OPENAI_API_KEY)fail('AI chat has not been configured',503);
   if(typeof message!=='string'||!message.trim()||message.length>4000)fail('Message must be 1–4000 characters');
   const params={
@@ -152,7 +187,7 @@ async function answer(message){
     input.push(...output);
     for(const item of calls){
       let result;
-      try{if(!QUERY_TOOLS.has(item.name))throw Error('Unknown');result=await tool(item.name,JSON.parse(item.arguments||'{}'));}
+      try{if(!QUERY_TOOLS.has(item.name))throw Error('Unknown');result=await tool(item.name,JSON.parse(item.arguments||'{}'),rootId);}
       catch{result={error:'Tool unavailable or outside allowed root'};}
       input.push({type:'function_call_output',call_id:item.call_id,output:JSON.stringify(result).slice(0,24000)});
     }
@@ -166,7 +201,7 @@ export default async function main({req,res,error}){
     if(origin&&origin!==req.scheme+'://'+req.host)fail('Origin not allowed',403);
     const path=req.path||'/';
     if(req.method==='GET'&&path==='/health')return json(res,200,{service:'fifth-year-mcp',version:'0.3.0',configured:!!notionToken()});
-    if(req.method==='GET'&&path==='/api/config')return json(res,200,{endpoint:ENDPOINT,project:PROJECT,root:ROOT,ai:!!process.env.OPENAI_API_KEY});
+    if(req.method==='GET'&&path==='/api/config')return json(res,200,{endpoint:ENDPOINT,project:PROJECT,multiProject:true,ai:!!process.env.OPENAI_API_KEY});
     if(req.method==='GET'&&['/','/index.html','/app.js','/style.css'].includes(path)){
       const filename=path==='/'?'index.html':path.slice(1);
       const content=await readFile(join(ASSETS,filename),'utf8');
@@ -176,24 +211,32 @@ export default async function main({req,res,error}){
     }
     if(req.method==='OPTIONS')return json(res,405,{error:'Cross-origin requests disabled'});
     if(req.method==='GET'&&path==='/api/me'){const user=await authenticate(req);return json(res,200,{user});}
+    if(req.method==='GET'&&path==='/api/projects'){
+      const user=await authenticate(req);
+      const projects=await accessibleProjects(user,req.headers['x-appwrite-key']);
+      return json(res,200,{projects});
+    }
     if(req.method==='POST'&&path==='/api/tool'){
-      await authenticate(req);
+      const user=await authenticate(req);
       const body=req.bodyJson||{};
+      const project=await projectScope(user,req.headers['x-appwrite-key'],body.projectId);
       if(!QUERY_TOOLS.has(body.op))fail('Read-only access',403);
-      return json(res,200,{result:await tool(body.op,body.args||{})});
+      return json(res,200,{result:await tool(body.op,body.args||{},project.rootId)});
     }
     if(req.method==='POST'&&path==='/api/chat'){
-      await authenticate(req);
-      return json(res,200,{answer:await answer(req.bodyJson?.message)});
+      const user=await authenticate(req);
+      const project=await projectScope(user,req.headers['x-appwrite-key'],req.bodyJson?.projectId);
+      return json(res,200,{answer:await answer(req.bodyJson?.message,project.rootId)});
     }
     if(req.method==='POST'&&path==='/api/write'){
       const user=await authenticate(req);
       if(process.env.ENABLE_WRITES!=='true')fail('Writes disabled',403);
-      if(!['editor','admin'].includes(user.role))fail('Permission denied',403);
       const body=req.bodyJson||{};
+      const project=await projectScope(user,req.headers['x-appwrite-key'],body.projectId);
+      if(!['editor','admin'].includes(project.role))fail('Permission denied',403);
       if(body.confirm!=='I AUTHORIZE THIS CHANGE')fail('Explicit confirmation required',403);
       if(!['create_page','append_paragraph'].includes(body.op))fail('Not an approved edit operation',403);
-      return json(res,200,{result:await tool(body.op,body.args||{})});
+      return json(res,200,{result:await tool(body.op,body.args||{},project.rootId)});
     }
     return json(res,404,{error:'Not found'});
   }catch(e){
