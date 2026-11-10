@@ -9,6 +9,14 @@ jobs:
   notion:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate app syntax
+        run: |
+          node --check appwrite-function/index.js
+          node --check appwrite-function/public/app.js
       - name: Verify Notion token and research page permission
         env:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
