@@ -1,22 +1,34 @@
-# Fifth Year Research MCP
+# Fifth Year Research Portal
 
-Private team research assistant integrating Appwrite Auth, scoped Notion API access, and an optional AI web portal.
+A student research portal for the Solar Intelligence graduation project. The server runs as an Appwrite Function (Node.js 22, no npm dependencies), authenticates Appwrite JWT sessions, and uses a **server-side Notion Internal Connection** to read a single approved research page tree.
 
-## Current state
+## Source
 
-- Dedicated Appwrite project exists in `fra`: `6af2b418002860c001a2`.
-- Private server-only roles database/table: `team_access/members` (`role`: viewer/editor/admin; `active`: boolean).
-- Notion research root: `41071da3-3679-81e6-8f76-fd7485e6618b`.
-- Application implementation is prepared as a local ZIP from the project conversation, but **is not yet committed or deployed**.
-- Notion token and API keys must never be committed here. GitHub Actions secrets alone are not runtime secrets; provision the hosting environment separately.
+- `appwrite-function/index.js` — HTTP API, Appwrite auth & roles, Notion scope enforcement, read-only AI.
+- `appwrite-function/public/` — Arabic browser portal (login, search, browse, AI chat).
+- `.github/workflows/notion-check.yml` — checks JavaScript syntax and securely tests Notion API access with GitHub Actions Secrets.
 
-## Next steps
+## Existing resources
 
-1. Upload the app source files from `fifth-year-research-mcp-v0.2.0.zip` to this repository (excluding `.env`, `node_modules/`, and all credentials).
-2. Install dependencies, run `npm test` and `npm run typecheck`, review the CI workflow and resolve any errors.
-3. Configure an Appwrite Web platform for the deployed origin and add invited, verified users with membership rows keyed by their Appwrite user IDs.
-4. Configure `APPWRITE_ENDPOINT=https://fra.cloud.appwrite.io/v1`, `APPWRITE_PROJECT_ID=6af2b418002860c001a2`, `APPWRITE_DATABASE_ID=team_access`, `APPWRITE_ROLES_TABLE_ID=members`, `NOTION_ROOT_PAGE_ID=41071da3-3679-81e6-8f76-fd7485e6618b` as runtime settings.
-5. Set `NOTION_TOKEN` and a narrowly scoped `APPWRITE_API_KEY` as **server-side secrets** on the hosting provider.
-6. Deploy over HTTPS with `ENABLE_MCP_HTTP=false` and `AI_ALLOW_WRITES=false` initially, then perform real end-to-end tests.
+- Appwrite project ID: `6af2b418002860c001a2`, endpoint `https://fra.cloud.appwrite.io/v1`.
+- Private Roles database and table: `team_access / members`.
+- Function ID: `fifth-year-research`, runtime `node-22`, role-lookup scope `rows.read`.
+- Notion research root ID: `41071da3-3679-81e6-8f76-fd7485e6618b`.
 
-The direct ChatGPT OAuth-based MCP integration is not implemented. The web portal is the initial supported client. Do not announce a publicly usable service until the security and live integration checks pass.
+## Server configuration
+
+Set `NOTION_TOKEN` as an **Appwrite Function secret variable** in the Appwrite Console — GitHub Actions secrets are not injected into Functions. Optional `OPENAI_API_KEY` activates AI chat. Leave `ENABLE_WRITES=false` until the team has tested permissions and approved a writing policy.
+
+Do not grant the Notion Integration access to personal or unrelated pages. Notion Guests do not become Notion MCP Members by using this independent portal.
+
+## Access model
+
+Every API request requires a valid Appwrite JWT and verified email. An active role row is required under `team_access/members`, with the row ID matching the Appwrite user's ID. Allowed `role` values: viewer, editor, admin; `active` must be true. Appwrite user signup does NOT automatically grant a role. The role table has no public permissions.
+
+The Notion root and descendants are the only readable area. AI tools are read-only. Direct changes can be enabled only by explicitly setting `ENABLE_WRITES=true` on the Appwrite Function and supplying an exact confirmation string; use this only after an explicit human security review. No direct OAuth-compatible ChatGPT MCP endpoint is included.
+
+## Deployment
+
+See [deployment details](docs/DEPLOYMENT.md). The generated Appwrite HTTPS domain is usable only once the Function has an **active successful deployment**. Verify `GET /health` indicates `configured: true` and perform an actual verified-member login/read test before inviting students.
+
+**Never commit API keys, secrets, `.env`, or Notion page data.**
