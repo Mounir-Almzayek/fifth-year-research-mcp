@@ -1,4 +1,5 @@
 import {readFile} from 'node:fs/promises';
+import {privateDecrypt, constants} from 'node:crypto';
 import {join,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 
@@ -24,8 +25,22 @@ async function request(url,headers={},method='GET',body){
   const data=await res.json().catch(()=>null);
   return {ok:res.ok,status:res.status,data};
 }
+let cachedNotionToken;
+function notionToken(){
+  if(cachedNotionToken!==undefined)return cachedNotionToken;
+  if(process.env.NOTION_TOKEN)return cachedNotionToken=process.env.NOTION_TOKEN;
+  const secret=process.env.NOTION_ENC_TOKEN_B64;
+  const key=process.env.NOTION_RSA_PRIVATE_KEY_B64;
+  if(!secret||!key)return cachedNotionToken=null;
+  try {
+    const pem=Buffer.from(key,'base64');
+    const bytes=Buffer.from(secret,'base64');
+    const result=privateDecrypt({key:pem,padding:constants.RSA_PKCS1_OAEP_PADDING,oaepHash:'sha256'},bytes);
+    return cachedNotionToken=result.toString('utf8');
+  }catch{return cachedNotionToken=null;}
+}
 async function notion(path,method='GET',body){
-  const token=process.env.NOTION_TOKEN;
+  const token=notionToken();
   if(!token)fail('Notion token not configured',503);
   for(let attempt=0;attempt<3;attempt++){
     const r=await request('https://api.notion.com/v1'+path,{'Authorization':'Bearer '+token,'Notion-Version':VERSION,'Content-Type':'application/json'},method,body);
@@ -150,7 +165,7 @@ export default async function main({req,res,error}){
     const origin=req.headers.origin;
     if(origin&&origin!==req.scheme+'://'+req.host)fail('Origin not allowed',403);
     const path=req.path||'/';
-    if(req.method==='GET'&&path==='/health')return json(res,200,{service:'fifth-year-mcp',version:'0.3.0',configured:!!process.env.NOTION_TOKEN});
+    if(req.method==='GET'&&path==='/health')return json(res,200,{service:'fifth-year-mcp',version:'0.3.0',configured:!!notionToken()});
     if(req.method==='GET'&&path==='/api/config')return json(res,200,{endpoint:ENDPOINT,project:PROJECT,root:ROOT,ai:!!process.env.OPENAI_API_KEY});
     if(req.method==='GET'&&['/','/index.html','/app.js','/style.css'].includes(path)){
       const filename=path==='/'?'index.html':path.slice(1);
