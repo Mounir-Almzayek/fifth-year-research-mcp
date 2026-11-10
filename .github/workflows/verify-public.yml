@@ -1,0 +1,20 @@
+name: Verify Public Appwrite HTTPS Domain
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/verify-public.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe generated function domain
+        run: |
+          host="fifth-year-research.fra.appwrite.run"
+          http_code=$(curl -L -sS --max-time 20 -o /tmp/response -w '%{http_code}' "https://$host/health")
+          echo "Response HTTP $http_code"
+          head -c 300 /tmp/response || true
+          if [ "$http_code" != "200" ]; then exit 1; fi
