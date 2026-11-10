@@ -17,7 +17,7 @@ A student research portal for the Solar Intelligence graduation project. The ser
 
 ## Server configuration
 
-Set `NOTION_TOKEN` as an **Appwrite Function secret variable** in the Appwrite Console — GitHub Actions secrets are not injected into Functions. Optional `OPENAI_API_KEY` activates AI chat. Leave `ENABLE_WRITES=false` until the team has tested permissions and approved a writing policy.
+Notion is now configured using **Appwrite function secrets** `NOTION_ENC_TOKEN_B64` and `NOTION_RSA_PRIVATE_KEY_B64`: an RSA-OAEP encrypted transfer securely moved the GitHub Actions `NOTION_TOKEN` without exposing its plaintext. A direct Appwrite secret named `NOTION_TOKEN` is also supported and takes precedence for future token rotation. GitHub Actions secrets are not injected into Functions automatically. Optional `OPENAI_API_KEY` activates read-only AI chat; it is **not yet provisioned**. Leave `ENABLE_WRITES=false` until the team has tested permissions and approved a writing policy.
 
 Do not grant the Notion Integration access to personal or unrelated pages. Notion Guests do not become Notion MCP Members by using this independent portal.
 
@@ -29,6 +29,6 @@ The Notion root and descendants are the only readable area. AI tools are read-on
 
 ## Deployment
 
-See [deployment details](docs/DEPLOYMENT.md). The generated Appwrite HTTPS domain is usable only once the Function has an **active successful deployment**. Verify `GET /health` indicates `configured: true` and perform an actual verified-member login/read test before inviting students.
+See [deployment details](docs/DEPLOYMENT.md). The generated Appwrite HTTPS domain is usable only once the Function has an **active successful deployment**. The active Appwrite deployment and public HTTPS domain passed health checks with `configured: true`. **Actual student account login and end-to-end page reading still require enrolling verified Appwrite users with membership rows.**
 
 **Never commit API keys, secrets, `.env`, or Notion page data.**
