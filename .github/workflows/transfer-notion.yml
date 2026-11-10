@@ -1,5 +1,8 @@
 name: One-time encrypted Notion token transfer
 on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/transfer-notion.yml']
   workflow_dispatch:
 permissions:
   contents: read
